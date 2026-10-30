@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SICAL SCMTR & Stage Funnel Status Analyzer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+  <style>
+    :root {
+      --primary: #1e293b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      padding: 2rem 1rem;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1250px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #ffffff;
+      padding: 1.5rem 2rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 2rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .header-text h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .header-text p.subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .logo-container img {
+      max-height: 55px;
+      object-fit: contain;
+    }
+
+    .upload-card {
+      background: var(--card-bg);
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      margin-bottom: 2rem;
+    }
+
+    .upload-card:hover {
+      border-color: var(--accent);
+      background-color: #f1f5f9;
+    }
+
+    .upload-card input[type="file"] {
+      display: none;
+    }
+
+    .upload-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+      color: var(--accent);
+    }
+
+    .btn-upload {
+      display: inline-block;
+      background-color: var(--accent);
+      color: #fff;
+      padding: 0.6rem 1.25rem;
+      border-radius: 6px;
+      font-weight: 500;
+      margin-top: 1rem;
+      text-decoration: none;
+      transition: background-color 0.2s;
+    }
+
+    .btn-upload:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-excel {
+      background-color: #16a34a;
+      color: #fff;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background-color 0.2s;
+      margin-bottom: 1.5rem;
+    }
+
+    .btn-excel:hover {
+      background-color: #15803d;
+    }
+
+    .dashboard {
+      display: none;
+    }
+
+    .location-banner {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+      color: #1e40af;
+      font-size: 1.05rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .stat-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin-bottom: 2rem;
+    }
+
+    .table-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background-color: #f8fafc;
+      font-weight: 600;
+      color: var(--primary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+
+    th {
+      background-color: #f1f5f9;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background-color: #f8fafc;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background-color: #e2e8f0;
+      color: #334155;
+    }
+
+    .badge-warn {
+      background-color: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-proc {
+      background-color: #dbeafe;
+      color: #1e40af;
+    }
+
+    .badge-success {
+      background-color: #dcfce7;
+      color: #15803d;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-text">
+        <h1>SICAL SCMTR Status Analyzer</h1>
+        <p class="subtitle">Pristine Group Company — Automated ICEGATE Message Type & Error Reconciliation</p>
+      </div>
+      <div class="logo-container">
+        <img src="Sical Logo_New2.0.jpg" alt="SICAL Logo" onerror="this.style.display='none'" />
+      </div>
+    </header>
+
+    <div class="upload-card" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="upload-icon">📁</div>
+      <h3>Click to upload or drag & drop SICAL SCMTR CSV / Funnel PDF</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Supports message type analysis (SF, ASR, DP, DT, AT, SFCN)</p>
+      <span class="btn-upload">Select File</span>
+      <input type="file" id="fileInput" accept=".csv,.pdf" />
+    </div>
+
+    <div class="dashboard" id="dashboard">
+      <div class="location-banner" id="locationBanner">Location: Detecting...</div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <h2 style="margin-bottom: 1rem; color: var(--primary);">Analysis Summary</h2>
+        <button class="btn-excel" id="downloadExcelBtn">
+          <span>⬇</span> Download Excel Report (.xlsx)
+        </button>
+      </div>
+
+      <div class="stats-grid" id="statsGrid"></div>
+
+      <!-- Message Type Breakdown Section -->
+      <div class="table-container">
+        <div class="table-header">
+          <span>Message Type Wise Breakdown (SCMTR_TYPE)</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Message Type</th>
+              <th style="text-align: right;">Total Records</th>
+              <th style="text-align: right; color: #15803d;">Approved / Success</th>
+              <th style="text-align: right; color: #1e40af;">Pending Approval / Validation</th>
+              <th style="text-align: right; color: #dc2626;">Rejected / Failed</th>
+            </tr>
+          </thead>
+          <tbody id="msgTypeTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Error Code Breakdown Section -->
+      <div class="table-container">
+        <div class="table-header">
+          <span id="tableTitle">Error Code Breakdown & Remarks</span>
+        </div>
+        <table>
+          <thead>
+            <tr id="tableHeaderRow"></tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ERROR_DESCRIPTIONS = {
+      "Pending / In Queue": "Record is pending submission or waiting in queue (Blank status).",
+      "Pending for System Validation": "Pending for system validation. Please retry after sometime.",
+      "Accepted (Officer Approval Pending)": "Acknowledgment generated with response code 00 and pending for officer approval.",
+      "Accepted & Approved by Officer": "Acknowledgment generated with response code 00 and approved by officer.",
+      "Accepted & Processing": "Your file has been accepted and is being processed.",
+      "B01": "Declaration Validation Failure (General rejection code triggered by sub-validations)",
+      "LCB04": "Location Code / Reporting Party Error",
+      "LCB14": "Authorized Person PAN is not valid",
+      "CDB06": "Shipping Bill is not ready for Stuffing",
+      "CDB09": "Cargo is not available at reporting site for stuffing",
+      "CDB11": "Package is already stuffed",
+      "CDB15": "Package numbers are not correct",
+      "CDB16": "Stuffing package details do not tally with the shipping bill package details",
+      "CDB20": "Custodian Code is not valid",
+      "CCB21": "Cargo Container Level Discrepancy",
+      "b99": "System-level or custom data sub-validation exception",
+      "EX-1": "Export Cargo / Shipping Bill Detail Mismatch",
+      "Header Validation Error": "Header validation failed: Control Number has already been processed (Duplicate Job / Sequence No)",
+      "Field Validation Error": "Field validation failed: Cargo Details Field is Required or invalid schema (HTTP 417)",
+      "No Data Found": "No data found for provided Unique ID and Sender ID"
+    };
+
+    let globalReportData = null;
+
+    document.getElementById("fileInput").addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      if (file) processFile(file);
+    });
+
+    const dropZone = document.getElementById("dropZone");
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = "#2563eb";
+      dropZone.style.backgroundColor = "#f1f5f9";
+    });
+    dropZone.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = "#cbd5e1";
+      dropZone.style.backgroundColor = "#ffffff";
+    });
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = "#cbd5e1";
+      dropZone.style.backgroundColor = "#ffffff";
+      if (e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);
+    });
+
+    function detectLocation(filename) {
+      const upper = filename.toUpperCase();
+      if (upper.includes("CHENNAI") || upper.includes("CHN")) return "Chennai Sical SCMTR Report";
+      if (upper.includes("TUTICORIN") || upper.includes("TUT") || upper.includes("MAG")) return "Tuticorin Sical SCMTR Report";
+      if (upper.includes("VIZAG")) return "Vizag Sical SCMTR Report";
+      return filename.replace(/\.[^/.]+$/, "");
+    }
+
+    function processFile(file) {
+      const fileName = file.name;
+      if (file.type === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) {
+        parsePDFReport(file);
+      } else {
+        parseCSVReport(file);
+      }
+    }
+
+    function parseCSVReport(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/);
+        
+        let headerIndex = 0;
+        for (let i = 0; i < Math.min(30, lines.length); i++) {
+          if (lines[i].toUpperCase().includes("CONT_NO") || lines[i].toUpperCase().includes("SHIPPING_BILL_NO")) {
+            headerIndex = i;
+            break;
+          }
+        }
+
+        const cleanCSV = lines.slice(headerIndex).join("\n");
+
+        Papa.parse(cleanCSV, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            analyzeCSVData(results.data, file.name);
+          }
+        });
+      };
+      reader.readAsText(file);
+    }
+
+    async function parsePDFReport(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        fullText += textContent.items.map(item => item.str).join(" ") + "\n";
+      }
+
+      const modules = ["SF", "ASR", "DP", "DT", "AR", "SFCN"];
+      const funnelRows = [];
+      let totalSuccess = 0;
+      let totalRejected = 0;
+      let totalTimeout = 0;
+      let totalPending = 0;
+
+      modules.forEach(mod => {
+        const regex = new RegExp(`${mod}\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)`, 'i');
+        const match = fullText.match(regex);
+        if (match) {
+          const generated = parseInt(match[1]);
+          const submitFailed = parseInt(match[2]);
+          const pendingAck = parseInt(match[3]);
+          const ackTimeout = parseInt(match[4]);
+          const rejected = parseInt(match[5]);
+          const success = parseInt(match[6]);
+
+          totalSuccess += success;
+          totalRejected += rejected;
+          totalTimeout += ackTimeout;
+          totalPending += pendingAck + submitFailed;
+
+          funnelRows.push({ Module: mod, Generated: generated, SubmitFailed: submitFailed, PendingAck: pendingAck, AckTimeout: ackTimeout, Rejected: rejected, Success: success });
+        }
+      });
+
+      const locationName = detectLocation(file.name);
+      globalReportData = {
+        type: "PDF_FUNNEL",
+        fileName: locationName,
+        total: totalSuccess + totalRejected + totalTimeout + totalPending,
+        success: totalSuccess,
+        rejected: totalRejected,
+        timeout: totalTimeout,
+        pending: totalPending,
+        funnelRows: funnelRows
+      };
+
+      renderFunnelDashboard(globalReportData);
+    }
+
+    function analyzeCSVData(rows, fileName) {
+      let total = 0;
+      let blankCount = 0;
+      let acceptedCount = 0;
+      let failedCount = 0;
+
+      const errorContainerSets = {};
+      const errorSbSets = {};
+      const errorCustomMessages = {};
+      const containerErrors = [];
+      const msgTypeStats = {};
+
+      const structuredErrorRegex = /['"]pathName['"]\s*:\s*['"]([^'"]+)['"]\s*[;,]\s*['"]errorCode['"]\s*:\s*['"]([^'"]+)['"](?:\s*[;,]\s*['"]errorMessage['"]\s*:\s*['"]([^'"]*)['"])?/gi;
+
+      rows.forEach((row) => {
+        const contNo = (row["CONT_NO"] || "").trim();
+        const sbNo = (row["SHIPPING_BILL_NO"] || "").trim();
+        const msgType = (row["SCMTR_TYPE"] || "SF").trim().toUpperCase() || "SF";
+        const failStatus = (row["FAIL_STATUS"] || "").trim().toUpperCase();
+        const ackResponse = row["ACK_RESPONSE"] || "";
+        const ackRemark = (row["ACK_REMARK"] || "").trim();
+        const apiUniqueId = row["API_UNIQUE_ID"] || "";
+
+        if (!contNo && !sbNo) return;
+        const recordId = contNo || sbNo;
+
+        total++;
+        if (!msgTypeStats[msgType]) {
+          msgTypeStats[msgType] = { total: 0, success: 0, pending: 0, failed: 0 };
+        }
+        msgTypeStats[msgType].total++;
+
+        const rowErrors = [];
+        const combinedText = (ackResponse + " " + ackRemark).toLowerCase();
+
+        const isSystemValidationPending = combinedText.includes("pending for system validation") || combinedText.includes("please retry after sometime");
+        const isOfficerApproval00 = combinedText.includes("pendingforofficerapproval") || combinedText.includes("officer approval");
+        const isOfficerApproved = combinedText.includes("approved by officer") || combinedText.includes("responsecode00");
+        const isAcceptedProcessing = failStatus === "P" || combinedText.includes("accepted and is being processed") || combinedText.includes("validationsuccess");
+
+        let statusKey = "";
+        let statusDesc = "";
+
+        if (failStatus === "") {
+          blankCount++;
+          msgTypeStats[msgType].pending++;
+          statusKey = "Pending / In Queue";
+          statusDesc = ERROR_DESCRIPTIONS["Pending / In Queue"];
+          rowErrors.push({ code: statusKey, path: "N/A" });
+        } else if (isSystemValidationPending) {
+          pendingAckCount = (window.pendingAckCount || 0) + 1;
+          msgTypeStats[msgType].pending++;
+          statusKey = "Pending for System Validation";
+          statusDesc = ERROR_DESCRIPTIONS["Pending for System Validation"];
+          rowErrors.push({ code: statusKey, path: "N/A" });
+        } else if (isOfficerApproval00) {
+          acceptedCount++;
+          msgTypeStats[msgType].pending++;
+          statusKey = "Accepted (Officer Approval Pending)";
+          statusDesc = ERROR_DESCRIPTIONS["Accepted (Officer Approval Pending)"];
+          rowErrors.push({ code: statusKey, path: "N/A" });
+        } else if (isOfficerApproved) {
+          acceptedCount++;
+          msgTypeStats[msgType].success++;
+          statusKey = "Accepted & Approved by Officer";
+          statusDesc = ERROR_DESCRIPTIONS["Accepted & Approved by Officer"];
+          rowErrors.push({ code: statusKey, path: "N/A" });
+        } else if (isAcceptedProcessing) {
+          acceptedCount++;
+          msgTypeStats[msgType].success++;
+          statusKey = "Accepted & Processing";
+          statusDesc = ERROR_DESCRIPTIONS["Accepted & Processing"];
+          rowErrors.push({ code: statusKey, path: "N/A" });
+        } else {
+          failedCount++;
+          msgTypeStats[msgType].failed++;
+          let match;
+          let foundCode = false;
+
+          structuredErrorRegex.lastIndex = 0;
+          while ((match = structuredErrorRegex.exec(ackResponse)) !== null) {
+            const path = match[1];
+            const code = match[2];
+            const msg = match[3] || "";
+            if (code !== "00") {
+              foundCode = true;
+              const key = `${code}|${path}`;
+              if (!errorContainerSets[key]) errorContainerSets[key] = new Set();
+              errorContainerSets[key].add(recordId);
+
+              if (!errorSbSets[key]) errorSbSets[key] = new Set();
+              if (sbNo) errorSbSets[key].add(sbNo);
+
+              if (msg && !errorCustomMessages[key]) {
+                errorCustomMessages[key] = msg.replace(/([A-Z])/g, ' $1').trim();
+              }
+              rowErrors.push({ code, path });
+            }
+          }
+
+          if (!foundCode) {
+            let descText = ackRemark;
+            const descMatch = ackResponse.match(/['"]responseDesc['"]\s*:\s*['"]([^'"]+)['"]/i);
+            if (descMatch && descMatch[1]) descText = descMatch[1];
+
+            let code = "", path = "", desc = "";
+            if (/Header validation failed|Control Number has already been processed/i.test(descText)) {
+              code = "Header Validation Error"; path = "headerField/sequenceOrControlNumber";
+              desc = "Header validation failed: Control Number has already been processed (Duplicate Job / Sequence No)";
+            } else if (/Field validation failed|Field Validation Error/i.test(descText)) {
+              code = "Field Validation Error";
+              const bodyMatch = descText.match(/body=([^:;]+):/i);
+              path = bodyMatch ? bodyMatch[1].trim() : "master.cargoContainer[0].cargoDetails";
+              desc = "Field validation failed: Cargo Details Field is Required (HTTP 417)";
+            } else if (/No data found/i.test(descText)) {
+              code = "No Data Found"; path = "headerField/uniqueId";
+              desc = "No data found for provided Unique ID and Sender ID";
+            } else if (descText && descText !== "null") {
+              code = "ICEGATE Remark"; path = "headerField"; desc = descText;
+            } else {
+              code = "EX-1"; path = "master/cargoContainer/cargoDetails";
+              desc = "Export Cargo / Shipping Bill Detail Mismatch";
+            }
+
+            const key = `${code}|${path}`;
+            if (!errorContainerSets[key]) errorContainerSets[key] = new Set();
+            errorContainerSets[key].add(recordId);
+            if (!errorSbSets[key]) errorSbSets[key] = new Set();
+            if (sbNo) errorSbSets[key].add(sbNo);
+            if (!errorCustomMessages[key]) errorCustomMessages[key] = desc;
+            rowErrors.push({ code, path });
+          }
+        }
+
+        if (statusKey) {
+          const key = `${statusKey}|N/A`;
+          if (!errorContainerSets[key]) errorContainerSets[key] = new Set();
+          errorContainerSets[key].add(recordId);
+          if (!errorSbSets[key]) errorSbSets[key] = new Set();
+          if (sbNo) errorSbSets[key].add(sbNo);
+          if (!errorCustomMessages[key]) errorCustomMessages[key] = statusDesc;
+        }
+
+        containerErrors.push({
+          ContainerNo: contNo,
+          ShippingBillNo: sbNo,
+          MsgType: msgType,
+          JobNo: row["SCMTR_JOB_NO"] || "",
+          FailStatus: failStatus || "PENDING / BLANK",
+          ApiUniqueId: apiUniqueId,
+          AckResponse: ackResponse,
+          AckRemark: ackRemark,
+          Errors: rowErrors.map(e => `${e.code}${e.path !== "N/A" ? ' (' + e.path + ')' : ''}`).join("; ")
+        });
+      });
+
+      const errorList = [];
+      Object.keys(errorContainerSets).forEach(key => {
+        const [code, path] = key.split("|");
+        const desc = errorCustomMessages[key] || ERROR_DESCRIPTIONS[code] || "Validation Status / Remark";
+        errorList.push({ 
+          code: code, 
+          path: path, 
+          desc: desc, 
+          count: errorContainerSets[key].size, 
+          sbCount: errorSbSets[key] ? errorSbSets[key].size : 0 
+        });
+      });
+
+      errorList.sort((a, b) => b.count - a.count);
+
+      const locationName = detectLocation(fileName);
+      globalReportData = {
+        type: "CSV_STATUS",
+        fileName: locationName,
+        total: total,
+        blankCount: blankCount,
+        acceptedCount: acceptedCount,
+        failedCount: failedCount,
+        errors: errorList,
+        containerErrors: containerErrors,
+        msgTypeStats: msgTypeStats
+      };
+
+      renderCSVDashboard(globalReportData);
+    }
+
+    function renderCSVDashboard(data) {
+      document.getElementById("locationBanner").innerText = `SICAL CFS Location / Source: ${data.fileName}`;
+      
+      const statsGrid = document.getElementById("statsGrid");
+      statsGrid.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label">Total Analyzed</div>
+          <div class="stat-value">${data.total.toLocaleString()}</div>
+          <div class="stat-desc">Total records submitted</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label" style="color: #2563eb;">Pending / Blank</div>
+          <div class="stat-value" style="color: #2563eb;">${data.blankCount.toLocaleString()}</div>
+          <div class="stat-desc">Awaiting submission</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label" style="color: #16a34a;">Accepted & Approved</div>
+          <div class="stat-value" style="color: #16a34a;">${data.acceptedCount.toLocaleString()}</div>
+          <div class="stat-desc">Successfully accepted</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label" style="color: #dc2626;">Failed / Rejected</div>
+          <div class="stat-value" style="color: #dc2626;">${data.failedCount.toLocaleString()}</div>
+          <div class="stat-desc">Rejected by ICEGATE</div>
+        </div>
+      `;
+
+      // Render Message Type Table
+      const msgTypeTbody = document.getElementById("msgTypeTableBody");
+      msgTypeTbody.innerHTML = "";
+      Object.keys(data.msgTypeStats).forEach(mType => {
+        const stats = data.msgTypeStats[mType];
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><span class="badge" style="background-color: #1e3a8a; color: white; font-weight: 700;">${mType}</span></td>
+          <td style="text-align: right; font-weight: 600;">${stats.total.toLocaleString()}</td>
+          <td style="text-align: right; font-weight: 600; color: #15803d;">${stats.success.toLocaleString()}</td>
+          <td style="text-align: right; font-weight: 600; color: #1e40af;">${stats.pending.toLocaleString()}</td>
+          <td style="text-align: right; font-weight: 600; color: #dc2626;">${stats.failed.toLocaleString()}</td>
+        `;
+        msgTypeTbody.appendChild(tr);
+      });
+
+      document.getElementById("tableTitle").innerText = "Error Code Breakdown & Remarks";
+      document.getElementById("tableHeaderRow").innerHTML = `
+        <th>Error Code / Status</th>
+        <th>Location (pathName)</th>
+        <th>Description</th>
+        <th style="text-align: right;">Shipping Bills</th>
+        <th style="text-align: right;">Affected Records</th>
+      `;
+
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "";
+      data.errors.forEach(item => {
+        const tr = document.createElement("tr");
+        let badgeClass = "badge";
+        if (item.code.includes("Header") || item.code.includes("Field")) badgeClass = "badge badge-warn";
+        else if (item.code.includes("Pending")) badgeClass = "badge badge-proc";
+        else if (item.code.includes("Accepted")) badgeClass = "badge badge-success";
+
+        tr.innerHTML = `
+          <td><span class="${badgeClass}">${item.code}</span></td>
+          <td><code style="color: #475569; font-size: 0.85rem;">${item.path}</code></td>
+          <td>${item.desc}</td>
+          <td style="text-align: right; font-weight: 600; color: #2563eb;">${item.sbCount.toLocaleString()}</td>
+          <td style="text-align: right; font-weight: 600;">${item.count.toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById("dashboard").style.display = "block";
+    }
+
+    function renderFunnelDashboard(data) {
+      document.getElementById("locationBanner").innerText = `Stage Funnel Report Source: ${data.fileName}`;
+
+      const statsGrid = document.getElementById("statsGrid");
+      statsGrid.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label">Total Stages Tracked</div>
+          <div class="stat-value">${data.total.toLocaleString()}</div>
+          <div class="stat-desc">Across all SCMTR modules</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label" style="color: #16a34a;">Success</div>
+          <div class="stat-value" style="color: #16a34a;">${data.success.toLocaleString()}</div>
+          <div class="stat-desc">Successfully processed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label" style="color: #dc2626;">Rejected</div>
+          <div class="stat-value" style="color: #dc2626;">${data.rejected.toLocaleString()}</div>
+          <div class="stat-desc">Rejected items</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label" style="color: #ca8a04;">Timeouts / Pending</div>
+          <div class="stat-value" style="color: #ca8a04;">${(data.timeout + data.pending).toLocaleString()}</div>
+          <div class="stat-desc">Timeouts or pending ACK</div>
+        </div>
+      `;
+
+      document.getElementById("tableTitle").innerText = "Stage Funnel Module Breakdown";
+      document.getElementById("tableHeaderRow").innerHTML = `
+        <th>Module</th>
+        <th style="text-align: right;">Generated</th>
+        <th style="text-align: right;">Submit Failed</th>
+        <th style="text-align: right;">Pending ACK</th>
+        <th style="text-align: right;">ACK Timeout</th>
+        <th style="text-align: right; color: #dc2626;">Rejected</th>
+        <th style="text-align: right; color: #16a34a;">Success</th>
+      `;
+
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "";
+      data.funnelRows.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><span class="badge" style="background-color: #2563eb; color: #fff;">${row.Module}</span></td>
+          <td style="text-align: right;">${row.Generated.toLocaleString()}</td>
+          <td style="text-align: right;">${row.SubmitFailed.toLocaleString()}</td>
+          <td style="text-align: right;">${row.PendingAck.toLocaleString()}</td>
+          <td style="text-align: right;">${row.AckTimeout.toLocaleString()}</td>
+          <td style="text-align: right; font-weight: 600; color: #dc2626;">${row.Rejected.toLocaleString()}</td>
+          <td style="text-align: right; font-weight: 600; color: #16a34a;">${row.Success.toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById("dashboard").style.display = "block";
+    }
+
+    document.getElementById("downloadExcelBtn").addEventListener("click", function() {
+      if (!globalReportData) return;
+      const wb = XLSX.utils.book_new();
+
+      if (globalReportData.type === "CSV_STATUS") {
+        const summarySheetData = [
+          [`SICAL SCMTR STATUS REPORT - ${globalReportData.fileName.toUpperCase()}`],
+          ["Generated Date:", new Date().toLocaleString()],
+          [""],
+          ["SUMMARY METRICS"],
+          ["Metric", "Count", "Status Description"],
+          ["Total Records Analyzed", globalReportData.total, "Total container declarations submitted"],
+          ["Pending / Blank", globalReportData.blankCount, "Awaiting submission"],
+          ["Accepted & Processing", globalReportData.acceptedCount, "Successfully accepted by ICEGATE"],
+          ["Failed / Rejected", globalReportData.failedCount, "Rejected by ICEGATE requiring correction"],
+          [""],
+          ["MESSAGE TYPE BREAKDOWN (SCMTR_TYPE)"],
+          ["Message Type", "Total Records", "Approved / Success", "Pending Approval / Validation", "Rejected / Failed"]
+        ];
+
+        Object.keys(globalReportData.msgTypeStats).forEach(mType => {
+          const s = globalReportData.msgTypeStats[mType];
+          summarySheetData.push([mType, s.total, s.success, s.pending, s.failed]);
+        });
+
+        summarySheetData.push([], ["LIST OF ERROR CODES & REMARKS"], ["Error Code / Status", "Location (pathName)", "Description", "Shipping Bills", "Affected Records"]);
+
+        globalReportData.errors.forEach(err => {
+          summarySheetData.push([err.code, err.path, err.desc, err.sbCount, err.count]);
+        });
+
+        const wsSummary = XLSX.utils.aoa_to_sheet(summarySheetData);
+        wsSummary["!cols"] = [{ wch: 28 }, { wch: 42 }, { wch: 65 }, { wch: 16 }, { wch: 18 }];
+        XLSX.utils.book_append_sheet(wb, wsSummary, "Summary Report");
+
+        const detailSheetData = [
+          ["CONTAINER NUMBER", "SHIPPING BILL NO", "MESSAGE TYPE", "JOB NO", "FAIL STATUS", "IDENTIFIED ERRORS / REMARKS", "API_UNIQUE_ID", "ACK_RESPONSE", "ACK_REMARK"]
+        ];
+        globalReportData.containerErrors.forEach(c => {
+          detailSheetData.push([c.ContainerNo, c.ShippingBillNo, c.MsgType, c.JobNo, c.FailStatus, c.Errors, c.ApiUniqueId, c.AckResponse, c.AckRemark]);
+        });
+
+        const wsDetails = XLSX.utils.aoa_to_sheet(detailSheetData);
+        wsDetails["!cols"] = [{ wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 40 }, { wch: 30 }, { wch: 50 }, { wch: 30 }];
+        XLSX.utils.book_append_sheet(wb, wsDetails, "Container Details");
+
+        XLSX.writeFile(wb, `SICAL_SCMTR_${globalReportData.fileName.replace(/\s+/g, '_')}.xlsx`);
+      } else {
+        const funnelSheetData = [
+          [`STAGE FUNNEL REPORT - ${globalReportData.fileName.toUpperCase()}`],
+          ["Generated Date:", new Date().toLocaleString()],
+          [""],
+          ["Module", "Generated", "Submit Failed", "Pending ACK", "ACK Timeout", "Rejected", "Success"]
+        ];
+
+        globalReportData.funnelRows.forEach(r => {
+          funnelSheetData.push([r.Module, r.Generated, r.SubmitFailed, r.PendingAck, r.AckTimeout, r.Rejected, r.Success]);
+        });
+
+        const wsFunnel = XLSX.utils.aoa_to_sheet(funnelSheetData);
+        wsFunnel["!cols"] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+        XLSX.utils.book_append_sheet(wb, wsFunnel, "Stage Funnel Summary");
+
+        XLSX.writeFile(wb, `SICAL_Stage_Funnel_${globalReportData.fileName.replace(/\s+/g, '_')}.xlsx`);
+      }
+    });
+  </script>
+</body>
+</html>
