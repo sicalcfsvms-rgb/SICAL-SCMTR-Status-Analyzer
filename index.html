@@ -70,12 +70,16 @@ code{font-size:.8rem;color:#475569}
   <div class="bar-tools">
     <div><label>VIEW&nbsp;</label><span class="seg"><button id="vAll" class="on">All filings</button><button id="vLat">Latest status per container</button></span></div>
     <div><label>MESSAGE TYPE&nbsp;</label><select id="fType"></select></div>
+    <div><label>CHA&nbsp;</label><select id="fCha" style="max-width:340px"></select></div>
     <button class="btn green" id="xl" style="margin-left:auto">⬇ Download Excel Report (.xlsx)</button>
   </div>
   <div class="kpis" id="kpis"></div>
 
   <div class="box"><h3>Message Type Summary <small>All message types in the selected view</small></h3>
     <div class="scroll"><table><thead id="mxH"></thead><tbody id="mxB"></tbody></table></div></div>
+
+  <div class="box"><h3>CHA Wise Summary <small id="chaRef">Click a CHA row to filter the whole report</small></h3>
+    <div class="scroll" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>CHA</th><th class="n">Total Filings</th><th class="n" style="color:#15803d">Approved / Successful</th><th class="n" style="color:#7c3aed">Pending Approval</th><th class="n" style="color:#2563eb">Pending Validation</th><th class="n" style="color:#dc2626">Rejected</th><th class="n">Other</th><th class="n">Success %</th></tr></thead><tbody id="chaB"></tbody></table></div></div>
 
   <div class="box"><h3>ACK_REMARK Analysis <small>Remarks normalised (Job nos. masked)</small></h3>
     <div class="scroll"><table><thead><tr><th>ACK_REMARK</th><th>Category</th><th class="n">Filings</th><th class="n">Share</th><th>Message Types</th></tr></thead><tbody id="rmB"></tbody></table></div></div>
@@ -224,11 +228,21 @@ function ageing(recs,ref){
 }
 //CORE-END
 
-let ALL=[],LATEST=[],META={},ST={view:'all',type:'ALL'},CUR=[],LA=null;
+let ALL=[],LATEST=[],META={},ST={view:'all',type:'ALL',cha:'ALL'},CUR=[],LA=null;
 const $=id=>document.getElementById(id),fmt=n=>n.toLocaleString('en-IN');
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pct=(a,b)=>b?(a/b*100).toFixed(1)+'%':'–';
 const tbadges=o=>Object.keys(o).sort((a,b)=>o[b]-o[a]).map(t=>`<span class="badge mt">${esc(t)}</span><span class="badge">${fmt(o[t])}</span>`).join(' ');
+
+const chaKey=x=>(x.cha||'').replace(/\s+/g,' ').trim().toUpperCase()||'(BLANK CHA)';
+const chaMatch=x=>ST.cha==='ALL'||chaKey(x)===ST.cha;
+const baseAll=()=>ST.view==='all'?ALL:LATEST;
+const chaLabel=()=>ST.cha==='ALL'?'All CHAs':ST.cha;
+function chaRows(recs){
+  const m=new Map();
+  recs.forEach(x=>{const k=chaKey(x);let e=m.get(k);if(!e){e=Object.assign({name:k},emptyC());m.set(k,e);}e.total++;e[x.b]++;});
+  return[...m.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name));
+}
 
 const fileIn=$('file'),drop=$('drop');
 fileIn.addEventListener('change',e=>e.target.files[0]&&load(e.target.files[0]));
@@ -261,20 +275,24 @@ function init(){
   const all=[...new Set(CORE.concat(types))];
   $('fType').innerHTML='<option value="ALL">All message types</option>'+all.map(t=>`<option>${esc(t)}</option>`).join('');
   $('rMsg').innerHTML='<option value="SCM">SCMTR types (SF, SFCN, ASR, DP, DT, AT, AR)</option><option value="ALL">All message names in list</option>'+Object.keys(ERRDB).map(m=>`<option>${esc(m)}</option>`).join('');$('rMsg').value='SCM';
-  ST.type='ALL';ST.view='all';$('vAll').className='on';$('vLat').className='';
+  const cm=new Map();ALL.forEach(x=>{const k=chaKey(x);cm.set(k,(cm.get(k)||0)+1);});
+  $('fCha').innerHTML='<option value="ALL">All CHAs ('+fmt(cm.size)+')</option>'+[...cm.keys()].sort((a,b)=>a.localeCompare(b)).map(k=>`<option value="${esc(k)}">${esc(k)} (${fmt(cm.get(k))})</option>`).join('');
+  ST.type='ALL';ST.view='all';ST.cha='ALL';$('vAll').className='on';$('vLat').className='';
   $('dash').style.display='block';render();
 }
 $('vAll').onclick=()=>{ST.view='all';$('vAll').className='on';$('vLat').className='';render();};
 $('vLat').onclick=()=>{ST.view='latest';$('vLat').className='on';$('vAll').className='';render();};
 $('fType').onchange=e=>{ST.type=e.target.value;render();};
+$('fCha').onchange=e=>{ST.cha=e.target.value;render();};
 $('rMsg').onchange=$('rSeen').onchange=()=>renderRef();$('rQ').oninput=()=>renderRef();
 $('dCat').onchange=renderDetail;$('dQ').oninput=renderDetail;
 
 function render(){
-  const base=ST.view==='all'?ALL:LATEST;
+  const baseV=baseAll(),base=ST.cha==='ALL'?baseV:baseV.filter(chaMatch);
   CUR=ST.type==='ALL'?base:base.filter(x=>x.type===ST.type);
   const aBase=agg(base),A=agg(CUR);
-  $('banner').textContent=`SICAL CFS Location: ${META.loc} — SCMTR Status Report`+(META.from?` | Period: ${META.from} → ${META.to}`:'')+` | View: ${ST.view==='all'?'All filings (every submission)':'Latest status per Type + Container + SB'}`;
+  $('banner').textContent=`SICAL CFS Location: ${META.loc} — SCMTR Status Report`+(META.from?` | Period: ${META.from} → ${META.to}`:'')+` | View: ${ST.view==='all'?'All filings (every submission)':'Latest status per Type + Container + SB'}`+(ST.cha!=='ALL'?` | CHA: ${ST.cha}`:'');
+  renderCha(ST.type==='ALL'?baseV:baseV.filter(x=>x.type===ST.type));
   const T=A.t,k=(l,v,d,c)=>`<div class="kpi" style="border-top-color:${c}"><div class="l" style="color:${c}">${l}</div><div class="v" style="color:${c}">${fmt(v)}</div><div class="d">${d}</div></div>`;
   let h=k('Total Filings',T.total,`${fmt(A.conts.size)} containers · ${fmt(A.sbs.size)} shipping bills`,'#1e293b')
    +k('Approved / Successful',T.A,pct(T.A,T.total)+' of filings','#15803d')
@@ -296,6 +314,12 @@ function render(){
   $('agB').innerHTML=ag.map(a=>`<tr><td>${a.l}</td><td class="n">${fmt(a.PA)}</td><td class="n">${fmt(a.PV)}</td></tr>`).join('');
   LA=A;renderRef();renderDetail();
 }
+function renderCha(recs){
+  const rows=chaRows(recs);
+  $('chaRef').textContent=`${fmt(rows.length)} CHAs in the selected view / message type · click a row to filter`+(ST.cha!=='ALL'?' · click again to clear':'');
+  $('chaB').innerHTML=rows.map(c=>`<tr data-cha="${esc(c.name)}" style="cursor:pointer${c.name===ST.cha?';background:#eff6ff;font-weight:600':''}"><td>${esc(c.name)}</td><td class="n">${fmt(c.total)}</td><td class="n" style="color:#15803d">${fmt(c.A)}</td><td class="n" style="color:#7c3aed">${fmt(c.PA)}</td><td class="n" style="color:#2563eb">${fmt(c.PV)}</td><td class="n" style="color:#dc2626">${fmt(c.R)}</td><td class="n">${fmt(c.O)}</td><td class="n">${pct(c.A,c.total)}</td></tr>`).join('')||'<tr><td class="empty" colspan="8">No data</td></tr>';
+}
+$('chaB').onclick=e=>{const tr=e.target.closest('tr[data-cha]');if(!tr)return;const k=tr.getAttribute('data-cha');ST.cha=ST.cha===k?'ALL':k;$('fCha').value=ST.cha;render();};
 function refRows(A){
   const rows=[];
   Object.keys(A.tc).forEach(k=>{const[t,c]=k.split('|');if(!(ERRDB[t]&&ERRDB[t][c]))rows.push({m:t,c,d:describe(t,c,'')[0],n:A.tc[k],u:1});});
@@ -330,20 +354,21 @@ function renderDetail(){
 
 $('xl').onclick=()=>{
   if(!ALL.length)return;
-  const base=ST.view==='all'?ALL:LATEST,A=agg(CUR),aB=agg(base),wb=XLSX.utils.book_new();
+  const baseV=baseAll(),base=baseV.filter(chaMatch),A=agg(CUR),aB=agg(base),wb=XLSX.utils.book_new();
   const types=CORE.concat(Object.keys(aB.types).filter(t=>!CORE.includes(t)));
-  const s=[[`SICAL SCMTR MESSAGE TYPE ANALYSIS - ${META.loc.toUpperCase()}`],['Generated',new Date().toLocaleString('en-IN')],['Period',`${META.from} -> ${META.to}`],['View',ST.view==='all'?'All filings':'Latest status per Type+Container+SB'],['Message type filter',ST.type],[],
+  const s=[[`SICAL SCMTR MESSAGE TYPE ANALYSIS - ${META.loc.toUpperCase()}`],['Generated',new Date().toLocaleString('en-IN')],['Period',`${META.from} -> ${META.to}`],['View',ST.view==='all'?'All filings':'Latest status per Type+Container+SB'],['Message type filter',ST.type],['CHA filter',chaLabel()],[],
    ['Metric','Count'],['Total Filings',A.t.total],['Approved / Successful',A.t.A],['Pending Approval',A.t.PA],['Pending Validation',A.t.PV],['Rejected',A.t.R],['Other',A.t.O],[],
    ['Message Type','Total','Approved / Successful','Pending Approval','Pending Validation','Rejected','Other','Success %']];
   types.concat(['TOTAL']).forEach(t=>{const c=t==='TOTAL'?aB.t:(aB.types[t]||emptyC());s.push([t,c.total,c.A,c.PA,c.PV,c.R,c.O,c.total?+(c.A/c.total*100).toFixed(1):0]);});
   const add=(n,a,w)=>{const ws=XLSX.utils.aoa_to_sheet(a);ws['!cols']=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,ws,n);};
   add('Summary',s,[28,16,22,18,20,12,10,12]);
+  add('CHA Summary',[['CHA','Total Filings','Approved / Successful','Pending Approval','Pending Validation','Rejected','Other','Success %']].concat(chaRows(ST.type==='ALL'?baseV:baseV.filter(x=>x.type===ST.type)).map(c=>[c.name,c.total,c.A,c.PA,c.PV,c.R,c.O,c.total?+(c.A/c.total*100).toFixed(1):0])),[48,14,22,18,20,12,10,12]);
   add('ACK_REMARK',[['ACK_REMARK','Category','Filings','Message Types']].concat([...A.rem.values()].sort((a,b)=>b.n-a.n).map(r=>[r.text,BN[r.b],r.n,Object.keys(r.types).map(t=>t+':'+r.types[t]).join(', ')])),[80,22,10,30]);
   add('Error Codes',[['Error Code','pathName','Description','Source','Filings','Containers','Shipping Bills','Message Types']].concat([...A.err.values()].sort((a,b)=>b.n-a.n).map(e=>[e.code,e.path,e.desc,e.src,e.n,e.conts.size,e.sbs.size,Object.keys(e.types).map(t=>t+':'+e.types[t]).join(', ')])),[12,38,70,24,10,12,14,24]);
   add('Error Code Reference',[['Message Name','Error Code','Description','Filings (this report)','Status']].concat(refRows(A).map(x=>[x.m,x.c,x.d,x.n,x.u?'Not in published list':x.n?'Seen':'Not seen'])),[14,12,80,18,22]);
   add('Rejection Signatures',[['Code combination','Filings','Containers','Message Types']].concat([...A.sig.values()].sort((a,b)=>b.n-a.n).map(x=>[x.sg,x.n,x.conts.size,Object.keys(x.types).map(t=>t+':'+x.types[t]).join(', ')])),[50,10,12,24]);
   add('Filing Details',[['Type','Container','SB No','CHA','Job No','File Created','ACK Received','Category','Detail','Error Codes','ACK_REMARK']].concat(CUR.map(x=>[x.type,x.cont,x.sb,x.cha,x.job,x.fc,x.ack,BN[x.b],x.sub,[...new Set(x.codes.map(c=>c.code))].join('; '),x.remark.slice(0,300)])),[8,16,12,28,10,22,22,22,34,34,70]);
-  XLSX.writeFile(wb,`SICAL_SCMTR_Message_Type_Analysis_${META.loc}.xlsx`);
+  XLSX.writeFile(wb,`SICAL_SCMTR_Message_Type_Analysis_${META.loc}${ST.cha!=='ALL'?'_'+ST.cha.replace(/[^A-Z0-9]+/g,'_').slice(0,30):''}.xlsx`);
 };
 </script>
 </body>
